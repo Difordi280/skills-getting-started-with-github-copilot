@@ -19,12 +19,40 @@ document.addEventListener("DOMContentLoaded", () => {
         activityCard.className = "activity-card";
 
         const spotsLeft = details.max_participants - details.participants.length;
+        const participants = details.participants || [];
+        const participantsMarkup = participants.length
+          ? `
+            <div class="participants-section">
+              <strong>Participants:</strong>
+              <div class="participants-list">
+                ${participants
+                  .map(
+                    (email) => `
+                      <div class="participant-pill" data-email="${email}" data-activity="${name}">
+                        <span>${email}</span>
+                        <button type="button" class="participant-delete" aria-label="Remove ${email}" title="Remove ${email}">
+                          ×
+                        </button>
+                      </div>
+                    `
+                  )
+                  .join("")}
+              </div>
+            </div>
+          `
+          : `
+            <div class="participants-section empty">
+              <strong>Participants:</strong>
+              <p class="participants-empty">No one has signed up yet.</p>
+            </div>
+          `;
 
         activityCard.innerHTML = `
           <h4>${name}</h4>
           <p>${details.description}</p>
           <p><strong>Schedule:</strong> ${details.schedule}</p>
           <p><strong>Availability:</strong> ${spotsLeft} spots left</p>
+          ${participantsMarkup}
         `;
 
         activitiesList.appendChild(activityCard);
@@ -40,6 +68,50 @@ document.addEventListener("DOMContentLoaded", () => {
       console.error("Error fetching activities:", error);
     }
   }
+
+  async function removeParticipant(email, activityName) {
+    try {
+      const response = await fetch(`/activities/${encodeURIComponent(activityName)}/participants/${encodeURIComponent(email)}`, {
+        method: "DELETE",
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.detail || "Failed to remove participant");
+      }
+
+      messageDiv.textContent = result.message;
+      messageDiv.className = "success";
+      messageDiv.classList.remove("hidden");
+
+      setTimeout(() => {
+        messageDiv.classList.add("hidden");
+      }, 5000);
+
+      await fetchActivities();
+    } catch (error) {
+      messageDiv.textContent = error.message;
+      messageDiv.className = "error";
+      messageDiv.classList.remove("hidden");
+      console.error("Error removing participant:", error);
+    }
+  }
+
+  activitiesList.addEventListener("click", (event) => {
+    const deleteButton = event.target.closest(".participant-delete");
+    if (!deleteButton) {
+      return;
+    }
+
+    const participantElement = deleteButton.closest(".participant-pill");
+    const email = participantElement?.dataset.email;
+    const activityName = participantElement?.dataset.activity;
+
+    if (email && activityName) {
+      removeParticipant(email, activityName);
+    }
+  });
 
   // Handle form submission
   signupForm.addEventListener("submit", async (event) => {
